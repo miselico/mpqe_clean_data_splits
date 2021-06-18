@@ -27,5 +27,5 @@ Then, install the dependencies using
 `pip install -e .`
 
 Then run
-`mpqe-
+`mpqe-clean`
 
