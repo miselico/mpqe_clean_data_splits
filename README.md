@@ -22,6 +22,10 @@ The types of entities
 
 These datasets are also in this repository `./data/compressed_triple_splits.zip`
 
+To run things yourself, get the data from mpqe and extract them in the folder called data
+Then, install the dependencies using
+`pip install -e .`
 
-
+Then run
+`mpqe-
 
