@@ -1,9 +1,16 @@
 import pathlib
 import pickle
-import rdflib
-from typing import Iterator, List, Mapping, Set, Tuple
+from typing import Mapping, Set, Tuple
 
-def intersect(split, validTriples, entitymapping, relationMapping) -> Tuple[Set[str], Set[str], Mapping[str, str], Set[Tuple[str, str, str]]]:
+import rdflib
+
+
+def intersect(
+    split,
+    validTriples,
+    entitymapping,
+    relationMapping
+) -> Tuple[Set[str], Set[str], Mapping[str, str], Set[Tuple[str, str, str]]]:
     '''
     Parameters
     ---------
@@ -12,11 +19,13 @@ def intersect(split, validTriples, entitymapping, relationMapping) -> Tuple[Set[
         the data as provided in mpqe
     validTriples:
         a set of triples which really exist in the dataset.
-        The predicate of these triples must have '.' replace by '' because that it how mpqe encoded them
+        The predicate of these triples must have '.' replace by ''
+        because that it how mpqe encoded them
     entitiMapping;
         a map from integer ID to URL for all entities in the split
     relationMapping:
-        a mapping from all predicates with '.' replaced by '' to their original form. Used to restore the original form.
+        a mapping from all predicates with '.' replaced by '' to their original form.
+        Used to restore the original form.
 
     Return
     ------
@@ -49,14 +58,15 @@ def intersect(split, validTriples, entitymapping, relationMapping) -> Tuple[Set[
     return all_entities, all_relations, type_info, split_triples
 
 
-if __name__ == "__main__":
+def main():
     data = pathlib.Path("./data/")
     datasets = ["AIFB", "AM", "MUTAG"]
     for dataset in datasets:
-        rawTriplesFile = data / dataset / "raw" / (dataset.lower()+ "_stripped.nt")
+        rawTriplesFile = data / dataset / "raw" / \
+            (dataset.lower() + "_stripped.nt")
         g = rdflib.Graph()
-        with open(rawTriplesFile, 'rb') as f:
-            g.parse(file=f, format='nt')
+        with open(rawTriplesFile, 'rb') as raw_triples_file:
+            g.parse(file=raw_triples_file, format='nt')
         triples = set()
         relationMapping = {}
         for s, p, o in g.triples((None, None, None)):
@@ -66,15 +76,14 @@ if __name__ == "__main__":
             predicate = str(p)
             strippedPredicate = predicate.replace('.', '')
             relationMapping[strippedPredicate] = predicate
-            triples.add((str(s),strippedPredicate,str(o)))
-        print (len(triples))
+            triples.add((str(s), strippedPredicate, str(o)))
+        print(len(triples))
         processed = data / dataset / "processed"
 
         entitymappingFile = processed / "entity_ids.pkl"
-        with open(entitymappingFile, 'rb') as f:
-            ids = pickle.load(f)
-        inv_ids = {v:k for k,v in ids.items()}
-
+        with open(entitymappingFile, 'rb') as entity_id_file:
+            ids = pickle.load(entity_id_file)
+        inv_ids = {v: k for k, v in ids.items()}
 
         used_entities = {}
         used_relations = {}
@@ -82,62 +91,58 @@ if __name__ == "__main__":
         type_infos = {}
         for split in ["train", "val", "test"]:
             splitDataPath = processed / (split + "_edges.pkl")
-            with open(splitDataPath, "rb") as f:
-                splitData = pickle.load(f)
-            split_entities_used, split_relations_used, split_type_info, split_valid_triples = intersect(splitData, triples, inv_ids, relationMapping)
+            with open(splitDataPath, "rb") as data_split_file:
+                splitData = pickle.load(data_split_file)
+            split_entities_used, split_relations_used, split_type_info, split_valid_triples = intersect(
+                splitData, triples, inv_ids, relationMapping)
             used_entities[split] = split_entities_used
             used_relations[split] = split_relations_used
             valid_triples[split] = split_valid_triples
             type_infos[split] = split_type_info
         # computing some stats for information
         missing = used_entities["test"].difference(used_entities["train"])
-        print (f"{dataset} has {len(missing)} entites in the test set which are not in training")
-
+        print(
+            f"{dataset} has {len(missing)} entities in the test set which are not in training")
 
         # output stuff
         output_dir = data / dataset / "triple_split"
         output_dir.mkdir(exist_ok=True)
 
-
         # save all valid triples, split by set
         for split, corrected_name in [("train", "train"), ("val", "valid"), ("test", "test")]:
             triples = valid_triples[split]
-            with open (output_dir / (corrected_name + ".nt"), "w") as f:
-                for s,p,o in triples:
+            with open(output_dir / (corrected_name + ".nt"), "w") as f:
+                for s, p, o in triples:
                     # note: all data in the mpqe sets are entities, s we can jsut wrap them with < >
                     f.write(f"<{s}> <{p}> <{o}> .\n")
 
         # save the entitiy list with their new ID
-        merged_entities = list(used_entities["train"].union(used_entities["val"].union(used_entities["test"])))
+        merged_entities = list(used_entities["train"].union(
+            used_entities["val"].union(used_entities["test"])))
         merged_entities.sort()
         with open(output_dir / "entoid", "w") as f:
             for index, entity in enumerate(merged_entities):
                 f.write(f"{entity}\t{str(index)}\n")
 
         # save the relation list with their ID
-        merged_relations = list(used_relations["train"].union(used_relations["val"].union(used_relations["test"])))
+        merged_relations = list(used_relations["train"].union(
+            used_relations["val"].union(used_relations["test"])))
         merged_relations.sort
         with open(output_dir / "reltoid", "w") as f:
             for index, rel in enumerate(merged_relations):
                 f.write(f"{rel}\t{str(index)}\n")
 
         # save the mapping from entity URL to type
-        merged_type_info = {**type_infos["train"], **type_infos["val"], **type_infos["test"]}
+        merged_type_info = {**type_infos["train"],
+                            **type_infos["val"], **type_infos["test"]}
         assert set(merged_entities) == set(merged_type_info.keys())
-        with open (output_dir / "entity_url_typing.txt", "w") as f:
+        with open(output_dir / "entity_url_typing.txt", "w") as f:
             # we will go over them in order of the merged_entities. this is maybe easier to keep an overview
             for entity in merged_entities:
                 f.write(f"{entity}\t{merged_type_info[entity]}\n")
 
         # save the mapping from entity ID to type
-        with open (output_dir / "entity_id_typing.txt", "w") as f:
+        with open(output_dir / "entity_id_typing.txt", "w") as f:
             # we will go over them in order of the merged_entities. this is maybe easier to keep an overview
             for index, entity in enumerate(merged_entities):
                 f.write(f"{index}\t{merged_type_info[entity]}\n")
-
-
-
-
-
-
-
