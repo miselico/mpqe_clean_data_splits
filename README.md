@@ -1,5 +1,5 @@
 
-The splits provided in [mpqe](https://github.com/dfdazac/mpqe) ae very tailored to that implementation.
+The splits provided in [mpqe](https://github.com/dfdazac/mpqe) are very tailored to that implementation.
 This script takes that data (the three sets AM, AIFB, MUTAG) and converts it into a more accessible form.
 
 The generated files, for each of these datasets are:
